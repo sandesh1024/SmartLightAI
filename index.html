@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>SmartLight AI — Dashboard (Demo)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Font Awesome for icons -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --muted:#94a3b8;
+      --accent:#06b6d4;
+      --glass: rgba(255,255,255,0.04);
+      --success:#10b981;
+      --danger:#ef4444;
+      --yellow:#f59e0b;
+    }
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+    body{margin:0;background:linear-gradient(180deg,#071029 0%, #071a2a 60%);color:#e6eef6;min-height:100vh;}
+    .app{display:flex;gap:20px;padding:24px;max-width:1200px;margin:16px auto;}
+    /* Sidebar */
+    .sidebar{width:260px;background:linear-gradient(180deg,var(--card), #071226);border-radius:12px;padding:18px;box-shadow:0 6px 22px rgba(2,6,23,0.6);}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    .logo{width:44px;height:44px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;font-weight:700;}
+    .title{font-size:15px;font-weight:700}
+    .subtitle{color:var(--muted);font-size:12px;margin-top:4px}
+    .stat{display:flex;flex-direction:column;gap:6px;margin-top:14px}
+    .stat .srow{display:flex;justify-content:space-between;color:var(--muted);font-size:13px;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.03)}
+    .controls{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+    .btn{background:var(--accent);color:#001219;padding:8px 10px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);}
+    .small{font-size:12px;color:var(--muted);}
+    /* Main area */
+    .main{flex:1;display:flex;flex-direction:column;gap:18px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.02)}
+    .row{display:flex;gap:14px}
+    .videoFrame{flex:1;min-height:320px;border-radius:10px;overflow:hidden;background:var(--glass);display:flex;flex-direction:column}
+    video, img{width:100%;height:100%;object-fit:contain;display:block;background:#071726}
+    .cameraTop{display:flex;align-items:center;justify-content:space-between;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,0.015),transparent)}
+    .lanePanel{width:340px;display:flex;flex-direction:column;gap:12px}
+    .lane{display:flex;align-items:center;justify-content:space-between;padding:12px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent);border:1px solid rgba(255,255,255,0.02)}
+    .lane-left{display:flex;gap:12px;align-items:center}
+    .badge{width:46px;height:46px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+    .lane-info{display:flex;flex-direction:column}
+    .lane-name{font-weight:700}
+    .lane-meta{font-size:12px;color:var(--muted)}
+    .progress{height:8px;background:rgba(255,255,255,0.04);border-radius:8px;overflow:hidden;width:140px}
+    .bar{height:100%;background:linear-gradient(90deg,var(--success),#22c1c3);width:10%}
+    .timers{display:flex;gap:10px;align-items:center}
+    .chip{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:8px;font-size:13px;color:var(--muted)}
+    /* lower row */
+    .charts{display:flex;gap:14px}
+    .chart-card{flex:1;padding:12px}
+    .log{height:160px;overflow:auto;padding:10px;background:rgba(0,0,0,0.15);border-radius:8px;color:var(--muted);font-size:13px}
+    .emergency{background:linear-gradient(90deg,var(--danger),#ff7a7a);padding:8px;border-radius:8px;color:#fff;font-weight:700;display:inline-flex;gap:8px;align-items:center}
+    footer{color:var(--muted);font-size:12px;padding:8px;text-align:center;margin-top:8px}
+    @media (max-width:980px){
+      .app{flex-direction:column;padding:12px}
+      .sidebar{width:100%}
+      .lanePanel{width:100%}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar card">
+      <div class="brand">
+        <div class="logo">SL</div>
+        <div>
+          <div class="title">SmartLight AI</div>
+          <div class="subtitle">Adaptive Traffic Dashboard</div>
+        </div>
+      </div>
+
+      <div class="stat">
+        <div class="srow"><div>Total Vehicles</div><div id="totalVehicles">--</div></div>
+        <div class="srow"><div>Average Wait</div><div id="avgWait">-- s</div></div>
+        <div class="srow"><div>Cycle Time</div><div id="cycleTime">120 s</div></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="simulateBtn"><i class="fa-solid fa-shuffle"></i> Simulate Snapshot</button>
+        <button class="btn secondary" id="startCamBtn"><i class="fa-solid fa-camera"></i> Start Camera</button>
+        <button class="btn secondary" id="stopCamBtn" disabled><i class="fa-solid fa-square-stop"></i> Stop Camera</button>
+        <div style="margin-top:6px;">
+          <div class="small">Emergency Simulation:</div>
+          <select id="emLane" style="width:100%;padding:8px;margin-top:6px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)">
+            <option value="none">None</option>
+            <option value="A">Lane A</option>
+            <option value="B">Lane B</option>
+            <option value="C">Lane C</option>
+            <option value="D">Lane D</option>
+          </select>
+          <button id="applyEmergency" class="btn" style="margin-top:8px">Apply Emergency</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div class="small">Notes:</div>
+        <div class="small" style="margin-top:6px">Loop sequence fixed: A → B → C → D. Green durations adapt per snapshot (softmax-based).</div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="row">
+        <div class="videoFrame card">
+          <div class="cameraTop">
+            <div>
+              <strong>Live Feed</strong>
+              <div style="font-size:12px;color:var(--muted)">Camera / placeholder view</div>
+            </div>
+            <div class="timers">
+              <div class="chip" id="currentLane">Lane: —</div>
+              <div class="chip" id="currentTimer">Time: —</div>
+            </div>
+          </div>
+          <!-- video -->
+          <div style="flex:1;display:flex;">
+            <video id="video" autoplay muted playsinline></video>
+            <img id="placeholder" src="Violation_Detection_Frame copy.jpg" alt="placeholder" />
+          </div>
+        </div>
+
+        <div class="lanePanel">
+          <!-- lanes -->
+          <div class="lane" id="laneA">
+            <div class="lane-left">
+              <div class="badge" style="background:linear-gradient(90deg,#06b6d4,#7c3aed)">A</div>
+              <div class="lane-info">
+                <div class="lane-name">Lane A</div>
+                <div class="lane-meta" id="metaA">Cars: -  Buses: -</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <div class="progress"><div class="bar" id="barA" style="width:10%"></div></div>
+              <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><div class="chip" id="timeA">30s</div></div>
+            </div>
+          </div>
+
+          <div class="lane" id="laneB">
+            <div class="lane-left">
+              <div class="badge" style="background:linear-gradient(90deg,#f59e0b,#ef4444)">B</div>
+              <div class="lane-info">
+                <div class="lane-name">Lane B</div>
+                <div class="lane-meta" id="metaB">Cars: -  Buses: -</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <div class="progress"><div class="bar" id="barB" style="width:10%"></div></div>
+              <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><div class="chip" id="timeB">30s</div></div>
+            </div>
+          </div>
+
+          <div class="lane" id="laneC">
+            <div class="lane-left">
+              <div class="badge" style="background:linear-gradient(90deg,#06b6d4,#10b981)">C</div>
+              <div class="lane-info">
+                <div class="lane-name">Lane C</div>
+                <div class="lane-meta" id="metaC">Cars: -  Buses: -</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <div class="progress"><div class="bar" id="barC" style="width:10%"></div></div>
+              <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><div class="chip" id="timeC">30s</div></div>
+            </div>
+          </div>
+
+          <div class="lane" id="laneD">
+            <div class="lane-left">
+              <div class="badge" style="background:linear-gradient(90deg,#7c3aed,#06b6d4)">D</div>
+              <div class="lane-info">
+                <div class="lane-name">Lane D</div>
+                <div class="lane-meta" id="metaD">Cars: -  Buses: -</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;">
+              <div class="progress"><div class="bar" id="barD" style="width:10%"></div></div>
+              <div style="margin-top:8px;display:flex;gap:6px;align-items:center"><div class="chip" id="timeD">30s</div></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Lower: Chart + Logs -->
+      <div class="charts">
+        <div class="chart-card card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div><strong>Vehicle Count Trend</strong><div style="font-size:12px;color:var(--muted)">Last snapshots</div></div>
+            <div style="display:flex;gap:8px">
+              <div class="chip">Cycle: 120s</div>
+              <div class="chip">Decision every 60s</div>
+            </div>
+          </div>
+          <canvas id="countChart" height="140"></canvas>
+        </div>
+
+        <div class="chart-card card" style="width:340px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div><strong>System Log</strong><div style="font-size:12px;color:var(--muted)">actions & decisions</div></div>
+            <div id="emBadge"></div>
+          </div>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+
+      <footer>Demo UI — SmartLight AI (presentation mode). Save & run locally to demo.</footer>
+    </main>
+  </div>
+
+<script>
+/* ====== Demo dashboard JS ======
+   - Simulates snapshots (vehicle counts)
+   - Computes lane scores using weights
+   - Uses softmax to allocate green time across a fixed cycle
+   - Runs a loop A->B->C->D with countdown based on computed times
+   - Allows emergency simulation
+*/
+
+const cycleTime = 120; // total cycle (seconds)
+const decisionInterval = 60; // snapshot decision time (demo)
+const weights = { bus:5, car:3, bike:1, emergency: 40 }; // emergency gets big bonus
+let laneData = {
+  A:{cars:0,buses:0,bikes:0,score:1,time:30},
+  B:{cars:0,buses:0,bikes:0,score:1,time:30},
+  C:{cars:0,buses:0,bikes:0,score:1,time:30},
+  D:{cars:0,buses:0,bikes:0,score:1,time:30}
+};
+let emergencyLane = null;
+let chart, chartData = {labels:[], datasets:[]};
+let currentIndex = 0; // A=0,B=1,C=2,D=3
+const laneKeys = ['A','B','C','D'];
+
+function softmax(arr){
+  const max = Math.max(...arr);
+  const exps = arr.map(a => Math.exp(a - max)); // numeric stability
+  const sum = exps.reduce((s,x)=>s+x,0);
+  return exps.map(e => e/sum);
+}
+
+function calculateScores(){
+  // compute weighted lane scores
+  for(const k of laneKeys){
+    const L = laneData[k];
+    let s = L.cars * weights.car + L.buses * weights.bus + L.bikes * weights.bike;
+    if(k === emergencyLane) s += weights.emergency;
+    L.score = Math.max(s, 0.001);
+  }
+}
+
+function allocateTimes(){
+  // softmax on scores to get share, then clamp min/max
+  const scores = laneKeys.map(k => laneData[k].score);
+  const probs = softmax(scores);
+  // allocate
+  const minG = 8, maxG = 60;
+  let rawTimes = probs.map(p => p * cycleTime);
+  // clamp
+  let final = rawTimes.map(t => Math.max(minG, Math.min(maxG, t)));
+  // rebalance if sum != cycleTime
+  let sumFinal = final.reduce((s,x)=>s+x,0);
+  if(Math.abs(sumFinal - cycleTime) > 1e-6){
+    // distribute remainder proportionally among non-clamped ones
+    const flexibleIdx = final.map((t,i)=> (t>minG && t<maxG) ? i : -1).filter(i=>i>=0);
+    let remainder = cycleTime - sumFinal;
+    if(flexibleIdx.length === 0){
+      // distribute evenly if none flexible
+      const even = cycleTime / 4;
+      final = [even,even,even,even];
+    } else {
+      // add proportional share
+      const sumFlexRaw = flexibleIdx.reduce((s,i)=>s+rawTimes[i],0);
+      for(const i of flexibleIdx){
+        final[i] = final[i] + (rawTimes[i]/sumFlexRaw) * remainder;
+      }
+    }
+  }
+  // set times
+  for(let i=0;i<4;i++){
+    laneData[laneKeys[i]].time = Math.round(final[i]);
+  }
+}
+
+function updateUI(){
+  // totals
+  const total = laneKeys.reduce((s,k)=> s + laneData[k].cars + laneData[k].buses + laneData[k].bikes, 0);
+  document.getElementById('totalVehicles').innerText = total;
+  document.getElementById('avgWait').innerText = Math.round(Math.random()*30) + ' s'; // demo
+  document.getElementById('cycleTime').innerText = cycleTime + ' s';
+  // lanes meta + bars
+  for(const k of laneKeys){
+    document.getElementById('meta'+k).innerText = `Cars: ${laneData[k].cars}  Buses: ${laneData[k].buses}  Bikes: ${laneData[k].bikes}`;
+    document.getElementById('time'+k).innerText = laneData[k].time + 's';
+    const pct = Math.max(3, Math.min(100, Math.round((laneData[k].time/cycleTime)*100)));
+    document.getElementById('bar'+k).style.width = pct + '%';
+  }
+  // update log
+  log(`Updated times: A:${laneData.A.time}s B:${laneData.B.time}s C:${laneData.C.time}s D:${laneData.D.time}s`);
+  // chart
+  addChartData();
+}
+
+function simulateSnapshot(randomize=true){
+  // generate random counts or small increments
+  for(const k of laneKeys){
+    if(randomize){
+      laneData[k].cars = Math.floor(Math.random()*12);
+      laneData[k].buses = Math.floor(Math.random()*3);
+      laneData[k].bikes = Math.floor(Math.random()*20);
+    } else {
+      // small changes
+      laneData[k].cars = Math.max(0, laneData[k].cars + (Math.random()>0.5?1:-1));
+    }
+  }
+  calculateScores();
+  allocateTimes();
+  updateUI();
+}
+
+function log(text){
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML = `<div style="padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.03)"><small style="color:var(--muted)">${time}</small><div>${text}</div></div>` + el.innerHTML;
+}
+
+function addChartData(){
+  const label = new Date().toLocaleTimeString();
+  chartData.labels.push(label);
+  if(chartData.labels.length>8) chartData.labels.shift();
+  const datasets = [
+    laneData.A.cars + laneData.A.buses + laneData.A.bikes,
+    laneData.B.cars + laneData.B.buses + laneData.B.bikes,
+    laneData.C.cars + laneData.C.buses + laneData.C.bikes,
+    laneData.D.cars + laneData.D.buses + laneData.D.bikes
+  ];
+  for(let i=0;i<4;i++){
+    chart.data.datasets[i].data.push(datasets[i]);
+    if(chart.data.datasets[i].data.length>8) chart.data.datasets[i].data.shift();
+  }
+  chart.update();
+}
+
+/* ===== loop runner (A->B->C->D) ===== */
+let loopTimer = null;
+let countdown = 0;
+let running = false;
+
+function startLoop(){
+  if(running) return;
+  running = true;
+  currentIndex = 0;
+  runLane(laneKeys[currentIndex]);
+}
+
+function runLane(lane){
+  const L = laneData[lane];
+  document.getElementById('currentLane').innerText = `Lane: ${lane}`;
+  let t = L.time;
+  countdown = t;
+  document.getElementById('currentTimer').innerText = `Time: ${countdown}s`;
+  // highlight emergency
+  for(const k of laneKeys){
+    document.getElementById('lane'+k).style.boxShadow = 'none';
+  }
+  document.getElementById('lane'+lane).style.boxShadow = '0 6px 18px rgba(3,218,198,0.08)';
+  if(emergencyLane) document.getElementById('emBadge').innerHTML = `<div class="emergency"><i class="fa-solid fa-triangle-exclamation"></i> Emergency: Lane ${emergencyLane}</div>`
+  else document.getElementById('emBadge').innerHTML = '';
+
+  // countdown loop
+  loopTimer = setInterval(()=>{
+    countdown--;
+    document.getElementById('currentTimer').innerText = `Time: ${countdown}s`;
+    if(countdown<=0){
+      clearInterval(loopTimer);
+      // next lane
+      currentIndex = (currentIndex + 1) % 4;
+      runLane(laneKeys[currentIndex]);
+    }
+  }, 1000);
+}
+
+/* ===== Camera controls ===== */
+const video = document.getElementById('video');
+const placeholder = document.getElementById('placeholder');
+let streamRef = null;
+document.getElementById('startCamBtn').addEventListener('click', async ()=>{
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({video:true, audio:false});
+    streamRef = s;
+    video.srcObject = s;
+    video.style.display = 'block';
+    placeholder.style.display = 'none';
+    document.getElementById('startCamBtn').disabled = true;
+    document.getElementById('stopCamBtn').disabled = false;
+    log('Camera started (webcam).');
+  }catch(e){
+    alert('Camera access denied or not available.');
+  }
+});
+document.getElementById('stopCamBtn').addEventListener('click', ()=>{
+  if(streamRef){
+    streamRef.getTracks().forEach(t=>t.stop());
+    streamRef = null;
+  }
+  video.srcObject = null;
+  video.style.display = 'none';
+  placeholder.style.display = 'block';
+  document.getElementById('startCamBtn').disabled = false;
+  document.getElementById('stopCamBtn').disabled = true;
+  log('Camera stopped.');
+});
+
+/* ===== Emergency handling UI ===== */
+document.getElementById('applyEmergency').addEventListener('click', ()=>{
+  const v = document.getElementById('emLane').value;
+  emergencyLane = (v === 'none') ? null : v;
+  if(emergencyLane) log(`Emergency activated on lane ${emergencyLane}`);
+  else log('Emergency cleared');
+  calculateScores();
+  allocateTimes();
+  updateUI();
+});
+
+/* ===== Simulate button ===== */
+document.getElementById('simulateBtn').addEventListener('click', ()=>{
+  simulateSnapshot(true);
+  // restart loop with new times
+  if(loopTimer){ clearInterval(loopTimer); }
+  runLane(laneKeys[currentIndex]);
+});
+
+
+/* ===== init chart ===== */
+function initChart(){
+  const ctx = document.getElementById('countChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {label:'Lane A', data:[], borderColor:'#06b6d4', backgroundColor:'rgba(6,182,212,0.08)', tension:0.3, pointRadius:2},
+        {label:'Lane B', data:[], borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.06)', tension:0.3, pointRadius:2},
+        {label:'Lane C', data:[], borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.06)', tension:0.3, pointRadius:2},
+        {label:'Lane D', data:[], borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,0.06)', tension:0.3, pointRadius:2}
+      ]
+    },
+    options: {
+      plugins:{legend:{labels:{color:'#cfe8f5'}}},
+      scales:{x:{ticks:{color:'#9fb6c8'}}, y:{ticks:{color:'#9fb6c8'}}}
+    }
+  });
+}
+
+/* ===== startup ===== */
+(function(){
+  // initial sample
+  simulateSnapshot(true);
+  initChart();
+  // start auto-loop (demo)
+  startLoop();
+  // periodic auto snapshots at mid-cycle
+  setInterval(()=>{ simulateSnapshot(true); }, decisionInterval * 1000);
+})();
+</script>
+</body>
+</html>
